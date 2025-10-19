@@ -60,9 +60,12 @@ textarea#argumentInput:focus{outline:none;border-color:rgba(255,209,102,0.28);co
 /* Admin area */
 #admin-root{max-width:1200px;margin:0 auto;padding-top:28px}
 .screen{width:100%;max-width:1100px;margin:12px auto;padding:12px}
-.screen.active{display:flex;flex-direction:column;align-items:center}
+.screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh}
 body.admin .players-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-.player-pill{background:rgba(255,255,255,0.06);padding:10px 14px;border-radius:999px;color:white;font-weight:700}
+.player-pill{background:rgba(255,255,255,0.06);padding:12px 18px;border-radius:8px;color:white;font-weight:800;font-size:18px}
+
+/* center admin status nicely */
+#adminLobby #adminStatus{font-size:20px;margin-top:18px;text-align:center}
 
 #finalResult{background:var(--panel);padding:14px;border-radius:10px}
 

@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const stage = document.getElementById('stage');
   const joinArea = document.getElementById('joinArea');
 
-  roomPin.textContent = ROOM;
+  if (roomPin) roomPin.textContent = ROOM;
 
   let localPlayerKey = localStorage.getItem('playerKey') || null;
   let localParty = localStorage.getItem('playerParty') || null;
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!playersGrid) return; // nothing to render on player view
     playersGrid.innerHTML = '';
     const entries = Object.entries(playersObj || {});
-    lobbyCount.textContent = entries.length;
+    if (lobbyCount) lobbyCount.textContent = entries.length;
     entries.forEach(([id, p]) => {
       const div = document.createElement('div');
       div.className = 'player-chip';
