@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // show argument editor
           argumentSection.classList.remove('hidden');
           quizArea.classList.add('hidden');
-          roleHelp.textContent = `Du skriver ditt argument som ${roleText}. Fokusera på att vara kort och tydlig.`;
+          roleHelp.textContent = `Du skriver ditt argument som ${roleText}. SVARA på motståndarens tidigare argument – var kort och tydlig.`;
         } else {
           // show quiz area (answering)
           argumentSection.classList.add('hidden');
@@ -164,8 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           quizStatus.textContent = '';
         }
-        // Show previous arguments on mellanskärm / när fas indikerar presentation
-        // If the room phase is phase2 (or finished) we can show previously submitted arguments for context
+  // Show previous arguments on mellanskärm / när fas indikerar presentation
+  // If the room phase is phase2 (or finished) we can show previously submitted arguments for context
         previousList.innerHTML = '';
         previousArguments.classList.add('hidden');
         try {
@@ -197,6 +197,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         } catch (e) { console.warn('Kunde inte läsa tidigare argument för mellanskärm', e); }
+        // Additionally: for writers, show the opponent's previous argument (if any) to respond to.
+        try {
+          const allPlayersSnap2 = await playersRef().once('value');
+          const allPlayers2 = allPlayersSnap2.exists() ? allPlayersSnap2.val() : {};
+          // find opponent id in myPair
+          if (myPair) {
+            const opponentId = (myRole === 'A') ? myPair.b : myPair.a;
+            if (opponentId && allPlayers2[opponentId]) {
+              const opp = allPlayers2[opponentId];
+              // Show last submitted argument from opponent from previous phase/round if exists
+              const prevRound = (phase === 'phase1') ? (round - 1) : round; // for phase1 in round>1, show opponent's phase2 from previous round
+              let oppKey = null;
+              if (phase === 'phase1') {
+                // writers in phase1 should respond to opponent's last phase2 from previous round (if available)
+                if (prevRound >= 1) oppKey = `r${prevRound}_phase2`;
+              } else if (phase === 'phase2') {
+                // writers in phase2 respond to opponent's phase1 in same round
+                oppKey = `r${round}_phase1`;
+              }
+              const oppArg = (opp && opp.arguments && oppKey && opp.arguments[oppKey]) ? opp.arguments[oppKey].text : null;
+              const opponentPrevArgEl = document.getElementById('opponentPrevArg');
+              const opponentPrevText = document.getElementById('opponentPrevText');
+              if (oppArg) {
+                if (opponentPrevText) opponentPrevText.textContent = oppArg;
+                if (opponentPrevArgEl) opponentPrevArgEl.style.display = '';
+              } else {
+                if (opponentPrevText) opponentPrevText.textContent = '';
+                if (opponentPrevArgEl) opponentPrevArgEl.style.display = 'none';
+              }
+            }
+          }
+        } catch (e) { console.warn('Kunde inte hämta motståndarens argument', e); }
+
+        // Ensure writer cannot re-submit for the same round/phase if already submitted
+        try {
+          const lpFull = lp;
+          const myKey = `r${round}_${phase}`;
+          const already = lpFull && lpFull.arguments && lpFull.arguments[myKey];
+          if (already) {
+            // disable editor and show status
+            argumentStatus.textContent = 'Du har redan skickat för denna fas.';
+            submitArgumentBtn.disabled = true; argumentInput.disabled = true;
+          } else {
+            argumentStatus.textContent = '';
+            submitArgumentBtn.disabled = false; argumentInput.disabled = false;
+          }
+        } catch (e) { console.warn('Kunde inte kontrollera om redan skickat', e); }
       })();
     } else {
       lobbyWait.textContent = 'Väntar på att admin startar spelet...';
