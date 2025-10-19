@@ -59,7 +59,8 @@ onValue(playersRef, snap => {
   Object.entries(players).forEach(([id, p]) => {
     const pill = document.createElement("div");
     pill.className = "player-pill";
-    pill.textContent = p.party + (p.points ? ` — ${p.points}p` : "");
+    const name = (p && p.party) ? p.party : id;
+    pill.textContent = name + (p && p.points ? ` — ${p.points}p` : "");
     playersRow.appendChild(pill);
   });
 });
@@ -122,6 +123,10 @@ onValue(roomMetaRef, async snap => {
   const roundNumber = room.roundNumber || 1;
   const pairs = room.pairs || [];
 
+  // Only check ready-to-advance for normal phases. If we're in a transition (mellanskarm)
+  // or finished, skip the auto-advance readiness check here.
+  if (!['phase1', 'phase2'].includes(phase)) return;
+
   const expectedKey = `r${roundNumber}_${phase}`;
   console.log("Admin checking advancement; expect:", expectedKey);
 
@@ -158,7 +163,8 @@ async function advancePhase() {
   let { roundNumber = 1, phase = "phase1", totalRounds = 3 } = room;
 
   if (phase === "phase1") {
-    phase = "phase2";
+    // move to an intermediate 'mellanskarm' where previous arguments are shown to players
+    phase = "mellanskarm";
     await update(roomRef, { phase });
     // reset players ready flags (so next phase tracks correctly)
     const playersSnap = await get(playersRef);
@@ -166,9 +172,24 @@ async function advancePhase() {
     for (const pid of Object.keys(playersObj)) {
       await update(ref(db, `${ROOM}/players/${pid}`), { ready: "" });
     }
-    adminStatus.textContent = `Runda ${roundNumber} — Fas 2`;
-    adminPhaseTitle.textContent = `${roundNumber} / ${totalRounds} — Fas 2`;
-    console.log("Avancerat till phase2");
+    adminStatus.textContent = `Runda ${roundNumber} — Mellanskärm (visar tidigare argument)`;
+    adminPhaseTitle.textContent = `${roundNumber} / ${totalRounds} — Mellanskärm`;
+    console.log("Avancerat till mellanskärm (interstitial)");
+
+    // after 5 seconds, advance to phase2 automatically
+    setTimeout(async () => {
+      phase = 'phase2';
+      await update(roomRef, { phase });
+      // reset ready flags again for phase2
+      const ps = await get(playersRef);
+      const pobj = ps.exists() ? ps.val() : {};
+      for (const pid of Object.keys(pobj)) {
+        await update(ref(db, `${ROOM}/players/${pid}`), { ready: '' });
+      }
+      adminStatus.textContent = `Runda ${roundNumber} — Fas 2`;
+      adminPhaseTitle.textContent = `${roundNumber} / ${totalRounds} — Fas 2`;
+      console.log('Avancerat automatiskt till phase2 efter mellanskärm');
+    }, 5000);
     return;
   }
 
@@ -180,18 +201,34 @@ async function advancePhase() {
       await runAIAndStore();
       return;
     } else {
-      roundNumber += 1;
-      phase = "phase1";
-      await update(roomRef, { roundNumber, phase });
+      // show mellanskärm between rounds
+      phase = 'mellanskarm';
+      await update(roomRef, { phase });
       // reset ready flags
       const playersSnap = await get(playersRef);
       const playersObj = playersSnap.exists() ? playersSnap.val() : {};
       for (const pid of Object.keys(playersObj)) {
         await update(ref(db, `${ROOM}/players/${pid}`), { ready: "" });
       }
-      adminStatus.textContent = `Runda ${roundNumber} — Fas 1`;
-      adminPhaseTitle.textContent = `${roundNumber} / ${room.totalRounds || 3} — Fas 1`;
-      console.log("Startar runda", roundNumber);
+      adminStatus.textContent = `Runda ${roundNumber} — Mellanskärm (visar tidigare argument)`;
+      adminPhaseTitle.textContent = `${roundNumber} / ${room.totalRounds || 3} — Mellanskärm`;
+      console.log("Avancerat till mellanskärm mellan rundor", roundNumber);
+
+      // after 5 seconds, advance to next round's phase1
+      setTimeout(async () => {
+        roundNumber += 1;
+        phase = 'phase1';
+        await update(roomRef, { roundNumber, phase });
+        // reset ready flags for new round
+        const ps2 = await get(playersRef);
+        const pobj2 = ps2.exists() ? ps2.val() : {};
+        for (const pid of Object.keys(pobj2)) {
+          await update(ref(db, `${ROOM}/players/${pid}`), { ready: '' });
+        }
+        adminStatus.textContent = `Runda ${roundNumber} — Fas 1`;
+        adminPhaseTitle.textContent = `${roundNumber} / ${room.totalRounds || 3} — Fas 1`;
+        console.log('Startar runda', roundNumber);
+      }, 5000);
       return;
     }
   }
@@ -223,10 +260,12 @@ function buildPresentationQueue(room, players) {
     for (let r = 1; r <= totalRounds; r++) {
       const k1 = `r${r}_phase1`;
       const k2 = `r${r}_phase2`;
-      const aarg = (a && a.arguments && a.arguments[k1]) ? a.arguments[k1].text : null;
-      const barg = (b && b.arguments && b.arguments[k2]) ? b.arguments[k2].text : null;
-      queue.push({ pair: [a ? a.party : "?", b ? b.party : "?"], author: a ? a.party : "A", text: aarg || "(inget argument)" });
-      queue.push({ pair: [a ? a.party : "?", b ? b.party : "?"], author: b ? b.party : "B", text: barg || "(inget argument)" });
+      const aarg = (a && a.arguments && a.arguments[k1] && a.arguments[k1].text) ? a.arguments[k1].text : null;
+      const barg = (b && b.arguments && b.arguments[k2] && b.arguments[k2].text) ? b.arguments[k2].text : null;
+      const aparty = (a && a.party) ? a.party : (pair.a || "?");
+      const bparty = (b && b.party) ? b.party : (pair.b || "?");
+      queue.push({ pair: [aparty, bparty], author: aparty || "A", text: aarg || "(inget argument)" });
+      queue.push({ pair: [aparty, bparty], author: bparty || "B", text: barg || "(inget argument)" });
     }
   }
   return queue;
@@ -303,6 +342,59 @@ async function runAIAndStore() {
   aiTop3.textContent = "AI-analys körs...";
 
   try {
+    // Compute mandates using Swedish modified Sainte-Laguë before/alongside AI
+    function computeMandatesFromPoints(playersObj, totalSeats = 349, threshold = 0.04, firstDivisor = 1.4) {
+      // Aggregate points by party name
+      const partyMap = {};
+      for (const [pid, p] of Object.entries(playersObj)) {
+        const name = (p.party || 'Okänt').trim();
+        if (!partyMap[name]) partyMap[name] = 0;
+        partyMap[name] += Number(p.points || 0);
+      }
+
+      const parties = Object.entries(partyMap).map(([party, votes]) => ({ party, votes }));
+      const totalVotes = parties.reduce((s, x) => s + x.votes, 0);
+
+      if (totalVotes <= 0) {
+        return { totalVotes, seats: [] };
+      }
+
+      // Apply threshold (4% of total votes)
+      const eligible = parties.filter(p => (p.votes / totalVotes) >= threshold);
+
+      if (eligible.length === 0) return { totalVotes, seats: [] };
+
+      // Prepare quotients for each party
+      const quotients = [];
+      // We'll generate enough quotients (totalSeats per party worst-case)
+      for (const p of eligible) {
+        for (let i = 0; i < totalSeats; i++) {
+          // divisor sequence: first is firstDivisor, then 3,5,7,... (odd numbers)
+          const divisor = (i === 0) ? firstDivisor : (2 * i + 1);
+          quotients.push({ party: p.party, value: p.votes / divisor });
+        }
+      }
+
+      // sort quotients descending, pick top totalSeats
+      quotients.sort((a, b) => b.value - a.value || a.party.localeCompare(b.party));
+      const top = quotients.slice(0, totalSeats);
+
+      // Count seats per party
+      const seatCount = {};
+      for (const t of top) {
+        seatCount[t.party] = (seatCount[t.party] || 0) + 1;
+      }
+
+      // Build ordered result
+      const results = eligible.map(p => ({ party: p.party, points: p.votes, mandates: seatCount[p.party] || 0 }));
+      // sort by mandates desc
+      results.sort((a, b) => b.mandates - a.mandates || b.points - a.points || a.party.localeCompare(b.party));
+
+      return { totalVotes, seats: results };
+    }
+
+    const mandateResult = computeMandatesFromPoints(players, 349, 0.04, 1.4);
+    console.log('Mandate allocation (SWE modified Sainte-Laguë):', mandateResult);
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -332,10 +424,11 @@ async function runAIAndStore() {
       console.warn("Kunde inte parsa AI JSON, sparar rå text. Fel:", e);
     }
 
-    // store results node
-    await set(ref(db, `${ROOM}/results`), { raw: text, at: Date.now(), parsed: parsed || null });
+  // store results node (include AI raw + parsed and our mandate allocation)
+  await set(ref(db, `${ROOM}/results`), { raw: text, at: Date.now(), parsed: parsed || null, mandates: mandateResult });
 
     // show in admin UI (top3)
+    // show AI top3 if available
     if (parsed && parsed.results && Array.isArray(parsed.results)) {
       aiTop3.innerHTML = "<h3>Topplista (AI)</h3>";
       parsed.results.slice(0,3).forEach((r, i) => {
@@ -346,6 +439,18 @@ async function runAIAndStore() {
     } else {
       aiTop3.textContent = "AI gav inte ett parsbart resultat. Se konsolen.";
     }
+
+    // also show the computed Swedish mandates (top 5)
+    try {
+      const mandDiv = document.createElement('div');
+      mandDiv.innerHTML = '<h3>Mandat (Svensk metod)</h3>';
+      (mandateResult.seats || []).slice(0,5).forEach((r, i) => {
+        const d = document.createElement('div');
+        d.textContent = `${i+1}. ${r.party} — ${r.mandates} mandat (${r.points}p)`;
+        mandDiv.appendChild(d);
+      });
+      aiTop3.appendChild(mandDiv);
+    } catch (e) { console.warn('Could not render mandates', e); }
 
     adminStatus.textContent = "AI-analys klar.";
   } catch (err) {
