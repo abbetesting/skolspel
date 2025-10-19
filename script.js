@@ -56,6 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const quizArea = document.getElementById('quizArea');
   const quizList = document.getElementById('quizList');
   const quizStatus = document.getElementById('quizStatus');
+  const finalResult = document.getElementById('finalResult');
+  const yourPlacement = document.getElementById('yourPlacement');
 
   // Helper: get player's party id and party name from stored local key
   async function getLocalPlayer() {
@@ -139,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
           roleHelp.textContent = `Du svarar på frågor medan din motståndare skriver. Svara så snabbt som möjligt.`;
         }
 
-        // NOTE: previous arguments are intentionally not rendered on player view
+  // NOTE: previous arguments are intentionally not rendered on player view
 
   // render quiz questions for current round for answerers
         quizList.innerHTML = '';
@@ -230,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } catch (e) { console.warn('Kunde inte hämta motståndarens argument', e); }
 
-        // Ensure writer cannot re-submit for the same round/phase if already submitted
+  // Ensure writer cannot re-submit for the same round/phase if already submitted
         try {
           const lpFull = lp;
           const myKey = `r${round}_${phase}`;
@@ -244,6 +246,29 @@ document.addEventListener('DOMContentLoaded', () => {
             submitArgumentBtn.disabled = false; argumentInput.disabled = false;
           }
         } catch (e) { console.warn('Kunde inte kontrollera om redan skickat', e); }
+        // If game finished, show player's placement (if set by admin)
+        try {
+          if (room.phase === 'finished') {
+            // hide other interactive areas
+            argumentSection.classList.add('hidden');
+            quizArea.classList.add('hidden');
+            previousArguments.classList.add('hidden');
+            // fetch fresh player node to read placement
+            const pSnap = await playersRef().once('value');
+            const all = pSnap.exists() ? pSnap.val() : {};
+            const me = all[lp.id] || {};
+            const placement = me.placement || null;
+            if (placement) {
+              if (yourPlacement) yourPlacement.innerHTML = `<strong>Placering:</strong> ${placement.rank || '-'}<br/><strong>Parti:</strong> ${me.party || '-'}<br/><strong>Mandat:</strong> ${placement.mandates || 0}`;
+              if (finalResult) finalResult.classList.remove('hidden');
+            } else {
+              if (yourPlacement) yourPlacement.textContent = 'Resultat ej tillgängligt ännu.';
+              if (finalResult) finalResult.classList.remove('hidden');
+            }
+          } else {
+            if (finalResult) finalResult.classList.add('hidden');
+          }
+        } catch (e) { console.warn('Kunde inte läsa din placering', e); }
       })();
     } else {
       lobbyWait.textContent = 'Väntar på att admin startar spelet...';

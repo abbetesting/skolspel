@@ -56,7 +56,14 @@ const roomMetaRef = ref(db, ROOM);
 onValue(playersRef, snap => {
   const players = snap.val() || {};
   playersRow.innerHTML = "";
-  Object.entries(players).forEach(([id, p]) => {
+  const entries = Object.entries(players);
+  // update admin status based on number of players
+  if (entries.length === 0) {
+    adminStatus.textContent = 'Väntar på spelare...';
+  } else {
+    adminStatus.textContent = `${entries.length} spelare anslutna`;
+  }
+  entries.forEach(([id, p]) => {
     const pill = document.createElement("div");
     pill.className = "player-pill";
     const name = (p && p.party) ? p.party : id;
@@ -101,7 +108,10 @@ startBtn.addEventListener("click", async () => {
 
   // reset players
   for (const pid of playerIds) {
-    await update(ref(db, `${ROOM}/players/${pid}`), { points: 0, ready: "" });
+    // if party name missing, create a friendly fallback
+    const p = playersObj[pid] || {};
+    const partyName = (p.party && p.party.trim()) ? p.party : `Spelare-${pid.slice(-4)}`;
+    await update(ref(db, `${ROOM}/players/${pid}`), { points: 0, ready: "", party: partyName });
   }
 
   adminStatus.textContent = `Spelet startat — Runda 1 / Fas 1`;
@@ -198,6 +208,16 @@ async function advancePhase() {
       // finish game -> run AI and show results
       await update(roomRef, { phase: "finished", gameActive: false });
       adminStatus.textContent = "Spelet klart — kör AI-analys";
+      // repair any missing party names before computing
+      const pSnap = await get(playersRef);
+      const pObj = pSnap.exists() ? pSnap.val() : {};
+      for (const pid of Object.keys(pObj)) {
+        const p = pObj[pid] || {};
+        if (!p.party || !p.party.trim()) {
+          const fallback = `Spelare-${pid.slice(-4)}`;
+          await update(ref(db, `${ROOM}/players/${pid}`), { party: fallback });
+        }
+      }
       await runAIAndStore();
       return;
     } else {
@@ -273,49 +293,7 @@ function buildPresentationQueue(room, players) {
 
 /* ===== presentation runner (admin only) ===== */
 let presentationInterval = null;
-startPresentationBtn.addEventListener("click", async () => {
-  // get room + players
-  const roomSnap = await get(roomRef);
-  const room = roomSnap.val() || {};
-  const playersSnap = await get(playersRef);
-  const players = playersSnap.exists() ? playersSnap.val() : {};
-
-  const queue = buildPresentationQueue(room, players);
-  if (!queue.length) return alert("Inga meddelanden att visa.");
-
-  presentationArea.innerHTML = ""; // clear
-  adminPhaseTitle.textContent = "Resultatvisning";
-
-  // show one message at a time; keep previous messages visible; new messages scroll into view
-  let idx = 0;
-  function showNext() {
-    if (idx >= queue.length) {
-      clearInterval(presentationInterval);
-      adminStatus.textContent = "Presentation klar.";
-      // after presenting all pairs, compute AI top3
-      runAIAndStore();
-      return;
-    }
-    const item = queue[idx++];
-    const div = document.createElement("div");
-    div.className = "presentation-message";
-    div.innerHTML = `<strong>${item.author}:</strong> ${item.text}`;
-    presentationArea.appendChild(div);
-    div.scrollIntoView({ behavior: "smooth", block: "end" });
-
-    // TTS only on admin
-    try {
-      const utter = new SpeechSynthesisUtterance(`${item.author} säger: ${item.text}`);
-      speechSynthesis.speak(utter);
-    } catch (e) {
-      console.warn("TTS fel:", e);
-    }
-  }
-
-  // initial show + interval
-  showNext();
-  presentationInterval = setInterval(showNext, 3500);
-});
+// Presentation button removed: AI will run automatically when game phase becomes 'finished'.
 
 /* ===== run AI at end: collects player points & args, prompts OpenRouter and saves result ===== */
 async function runAIAndStore() {
@@ -411,23 +389,48 @@ async function runAIAndStore() {
       })
     });
 
-    const data = await res.json();
-    console.log("FULL AI RESPONSE:", data);
-    const text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
-
-    // try to extract JSON from response
-    const match = text.match(/\{[\s\S]*\}$/);
+    let text = null;
     let parsed = null;
-    try {
-      parsed = match ? JSON.parse(match[0]) : JSON.parse(text);
-    } catch (e) {
-      console.warn("Kunde inte parsa AI JSON, sparar rå text. Fel:", e);
+    if (!res.ok) {
+      // read error body and continue with local mandateResult
+      const errText = await res.text().catch(() => `Status ${res.status}`);
+      console.warn('AI HTTP error', res.status, errText);
+      text = `AI HTTP error ${res.status}: ${errText}`;
+      // keep parsed=null
+    } else {
+      const data = await res.json();
+      console.log("FULL AI RESPONSE:", data);
+      text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
+      // try to extract JSON from response
+      const match = text.match(/\{[\s\S]*\}$/);
+      try {
+        parsed = match ? JSON.parse(match[0]) : JSON.parse(text);
+      } catch (e) {
+        console.warn("Kunde inte parsa AI JSON, sparar rå text. Fel:", e);
+      }
     }
 
-  // store results node (include AI raw + parsed and our mandate allocation)
-  await set(ref(db, `${ROOM}/results`), { raw: text, at: Date.now(), parsed: parsed || null, mandates: mandateResult });
+  // compute per-party placements from mandateResult and store per-player placements
+  const seats = (mandateResult && mandateResult.seats) ? mandateResult.seats : [];
+  const partyPlacement = {};
+  seats.forEach((s, idx) => {
+    partyPlacement[s.party] = { rank: idx + 1, mandates: s.mandates, points: s.points };
+  });
 
-    // show in admin UI (top3)
+  // write per-player placement under each player node (match by party name)
+  for (const [pid, p] of Object.entries(players)) {
+    const pname = (p && p.party) ? p.party : null;
+    const place = (pname && partyPlacement[pname]) ? partyPlacement[pname] : { rank: null, mandates: 0, points: p.points || 0 };
+    try {
+      await update(ref(db, `${ROOM}/players/${pid}`), { placement: place });
+    } catch (e) { console.warn('Kunde inte skriva placement för', pid, e); }
+  }
+
+  // store results node (include AI raw + parsed and our mandate allocation and top3)
+  const top3 = seats.slice(0,3);
+  await set(ref(db, `${ROOM}/results`), { raw: text, at: Date.now(), parsed: parsed || null, mandates: mandateResult, top3, partyPlacement });
+
+  // show in admin UI (top3)
     // show AI top3 if available
     if (parsed && parsed.results && Array.isArray(parsed.results)) {
       aiTop3.innerHTML = "<h3>Topplista (AI)</h3>";
@@ -461,3 +464,29 @@ async function runAIAndStore() {
 }
 
 console.log("ADMIN SCRIPT LOADED");
+
+// If admin page loads and the room is already finished, repair names and run analysis immediately.
+(async function checkFinishedOnLoad(){
+  try {
+    const rs = await get(roomRef);
+    const room = rs.exists() ? rs.val() : null;
+    if (room && room.phase === 'finished') {
+      adminStatus.textContent = 'Upptäcker färdigt spel — reparerar spelarnamn och kör analys';
+      // repair players if necessary
+      const pSnap = await get(playersRef);
+      const pObj = pSnap.exists() ? pSnap.val() : {};
+      for (const pid of Object.keys(pObj)) {
+        const p = pObj[pid] || {};
+        if (!p.party || !p.party.trim()) {
+          const fallback = `Spelare-${pid.slice(-4)}`;
+          await update(ref(db, `${ROOM}/players/${pid}`), { party: fallback });
+        }
+      }
+      // run analysis which will write results/top3 and per-player placement
+      await runAIAndStore();
+      adminStatus.textContent = 'Analys körd (on load)';
+    }
+  } catch (e) {
+    console.warn('Fel vid on-load kontroll:', e);
+  }
+})();

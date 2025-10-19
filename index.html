@@ -11,7 +11,6 @@
         <main class="container">
             <header class="kahoot-header">
                 <div class="brand">Debatt Spelet</div>
-                <div class="pin">Room: <strong id="roomPin">gameRoom</strong></div>
             </header>
 
             <!-- Player view: only join area and stage. Lobby / players list is admin-only and removed here. -->
@@ -56,6 +55,11 @@
                         <h4>Frågor (Sant / Falskt)</h4>
                         <div id="quizList"></div>
                         <div id="quizStatus" class="muted" style="margin-top:8px"></div>
+                    </div>
+                    <!-- Final result for a player when game finished -->
+                    <div id="finalResult" class="card hidden" style="margin-top:12px">
+                        <h4>Ditt resultat</h4>
+                        <div id="yourPlacement"></div>
                     </div>
                 </div>
             </section>
