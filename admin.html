@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Debattspel — Admin</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div id="admin-root">
+    <div id="adminLobby" class="screen active">
+        <h1>Admin — Lobby</h1>
+        <p id="propDisplayTop" class="muted">Proposition: (genereras automatiskt när spelet startar)</p>
+        <div id="playersRow" class="players-row"></div>
+        <div style="margin-top:18px;">
+            <button id="startBtn" class="primary large">Starta spelet</button>
+            <button id="endBtn" class="secondary">Avsluta & rensa lobbyn</button>
+        </div>
+        <p id="adminStatus" class="muted">Status: Inaktiv</p>
+    </div>
+
+    <div id="adminGame" class="screen hidden full-screen">
+        <h1 id="adminPhaseTitle">Runda</h1>
+        <p id="adminProposition" class="muted">Proposition: -</p>
+        <div id="presentationArea" class="presentation-area"></div>
+        <div style="position:fixed;right:18px;bottom:18px;">
+            <button id="startPresentationBtn" class="primary">Starta resultatvisning</button>
+            <button id="endGameBtn" class="secondary">Avsluta spel</button>
+        </div>
+        <div id="aiTop3" class="ai-top3"></div>
+    </div>
+</div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

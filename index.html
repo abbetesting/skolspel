@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="sv">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Debatt Spelet — Lobby</title>
+        <link rel="stylesheet" href="style.css" />
+            <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    </head>
+    <body>
+        <main class="container">
+            <header class="kahoot-header">
+                <div class="brand">Debatt Spelet</div>
+                <div class="pin">Room: <strong id="roomPin">gameRoom</strong></div>
+            </header>
+
+            <!-- Player view: only join area and stage. Lobby / players list is admin-only and removed here. -->
+            <section id="playerJoin" class="player-join">
+                <h2 id="lobbyTitle">Välkommen — gå med i spelet</h2>
+                <p class="muted">Skriv ditt partinamn och tryck Gå med.</p>
+                <div id="joinArea">
+                    <div class="join-row">
+                        <input id="partyInput" type="text" placeholder="Ditt partinamn" autocomplete="off" />
+                        <button id="joinBtn" class="primary">Gå med</button>
+                    </div>
+                    <p id="joinError" class="error" aria-live="polite"></p>
+                </div>
+                <p id="lobbyWait" class="muted">Väntar på att admin startar spelet...</p>
+            </section>
+
+            <section id="stage" class="stage hidden">
+                <h3 id="stageTitle">Spelet pågår</h3>
+                <div id="stageContent">
+                    <div id="playerRoleArea" class="player-role-area">
+                        <p>Din roll: <strong id="playerRole">-</strong></p>
+                        <p id="roleHelp" class="muted"></p>
+                    </div>
+
+                    <div id="argumentSection" class="card hidden">
+                        <h4>Skriv ditt argument</h4>
+                        <textarea id="argumentInput" rows="5" placeholder="Skriv ditt argument här..."></textarea>
+                        <div style="margin-top:8px;">
+                            <button id="submitArgumentBtn" class="primary">Skicka argument</button>
+                            <span id="argumentStatus" class="muted" style="margin-left:10px"></span>
+                        </div>
+                    </div>
+
+                    <div id="previousArguments" class="card hidden">
+                        <h4>Tidigare argument</h4>
+                        <div id="previousList"></div>
+                    </div>
+
+                    <div id="quizArea" class="card hidden">
+                        <h4>Frågor (Sant / Falskt)</h4>
+                        <div id="quizList"></div>
+                        <div id="quizStatus" class="muted" style="margin-top:8px"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+            <!-- Firebase (client) - use compat/global builds so script.js can use globals like initializeApp -->
+            <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+            <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
+            <script src="script.js"></script>
+    </body>
+</html>
