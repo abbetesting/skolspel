@@ -168,8 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
   // Show previous arguments on mellanskärm / när fas indikerar presentation
   // If the room phase is phase2 (or finished) we can show previously submitted arguments for context
-        previousList.innerHTML = '';
-        previousArguments.classList.add('hidden');
+  previousList.innerHTML = '';
+  previousArguments.classList.add('hidden');
         try {
           const allPlayersSnap = await playersRef().once('value');
           const allPlayers = allPlayersSnap.exists() ? allPlayersSnap.val() : {};
@@ -199,34 +199,29 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         } catch (e) { console.warn('Kunde inte läsa tidigare argument för mellanskärm', e); }
-        // Additionally: for writers, show the opponent's previous argument (if any) to respond to.
+        // For writers: show the opponent's previous argument once (either in mellanskärm or while writing)
         try {
           const allPlayersSnap2 = await playersRef().once('value');
           const allPlayers2 = allPlayersSnap2.exists() ? allPlayersSnap2.val() : {};
-          // find opponent id in myPair
           if (myPair) {
             const opponentId = (myRole === 'A') ? myPair.b : myPair.a;
             if (opponentId && allPlayers2[opponentId]) {
               const opp = allPlayers2[opponentId];
-              // Show last submitted argument from opponent from previous phase/round if exists
-              const prevRound = (phase === 'phase1') ? (round - 1) : round; // for phase1 in round>1, show opponent's phase2 from previous round
+              const prevRound = (phase === 'phase1') ? (round - 1) : round;
               let oppKey = null;
               if (phase === 'phase1') {
-                // writers in phase1 should respond to opponent's last phase2 from previous round (if available)
                 if (prevRound >= 1) oppKey = `r${prevRound}_phase2`;
               } else if (phase === 'phase2') {
-                // writers in phase2 respond to opponent's phase1 in same round
                 oppKey = `r${round}_phase1`;
               }
               const oppArg = (opp && opp.arguments && oppKey && opp.arguments[oppKey]) ? opp.arguments[oppKey].text : null;
               const opponentPrevArgEl = document.getElementById('opponentPrevArg');
               const opponentPrevText = document.getElementById('opponentPrevText');
-              if (oppArg) {
-                if (opponentPrevText) opponentPrevText.textContent = oppArg;
-                if (opponentPrevArgEl) opponentPrevArgEl.style.display = '';
-              } else {
-                if (opponentPrevText) opponentPrevText.textContent = '';
-                if (opponentPrevArgEl) opponentPrevArgEl.style.display = 'none';
+              if (oppArg && opponentPrevText && opponentPrevArgEl) {
+                opponentPrevText.textContent = oppArg;
+                opponentPrevArgEl.style.display = '';
+              } else if (opponentPrevArgEl) {
+                opponentPrevArgEl.style.display = 'none';
               }
             }
           }

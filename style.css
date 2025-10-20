@@ -64,6 +64,13 @@ textarea#argumentInput:focus{outline:none;border-color:rgba(255,209,102,0.28);co
 body.admin .players-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .player-pill{background:rgba(255,255,255,0.06);padding:12px 18px;border-radius:8px;color:white;font-weight:800;font-size:18px}
 
+/* admin lobby player list: inline wrapping with max 6 per row visual behavior */
+.player-list{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.player-list .player-pill{flex:0 1 calc(100% / 6 - 12px);min-width:120px;max-width:220px;text-align:center}
+.player-list.compact .player-pill{flex:0 1 calc(100% / 3 - 12px)}
+
+.admin-game-prop-visible { display: block !important; }
+
 /* center admin status nicely */
 #adminLobby #adminStatus{font-size:20px;margin-top:18px;text-align:center}
 
