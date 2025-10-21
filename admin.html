@@ -7,8 +7,9 @@
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
-<body>
+<body class="admin">
 <div id="admin-root">
+    <!-- Lobby -->
     <div id="adminLobby" class="screen active">
         <h1>Lobby</h1>
         <div id="playersRow" class="players-row player-list"></div>
@@ -20,6 +21,7 @@
         <button id="endBtn" class="secondary">Avsluta & rensa lobbyn</button>
     </footer>
 
+    <!-- Spelvy -->
     <div id="adminGame" class="screen hidden full-screen">
         <h1 id="adminPhaseTitle">Runda</h1>
         <p id="adminProposition" class="muted" style="display:none">Proposition: -</p>
