@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const stage = document.getElementById('stage');
   const joinArea = document.getElementById('joinArea');
   const lobbyTitle = document.getElementById('lobbyTitle');
+  const opponentBox = document.getElementById('opponentArguments');
 
   if (roomPin) roomPin.textContent = ROOM;
 
@@ -30,7 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const playersRef = () => db.ref(`${ROOM}/players`);
   const roomRef = () => db.ref(ROOM);
 
-  function renderPlayers(playersObj){
+  let lastRoundSeen = 0; // för att visa motståndarens argument från föregående runda
+
+  function renderPlayers(playersObj) {
     if (!playersGrid) return;
     playersGrid.innerHTML = '';
     const entries = Object.entries(playersObj || {});
@@ -43,10 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function updateLobbyText(room){
+  function updateLobbyText(room) {
     if (!lobbyTitle) return;
     if (!room.gameActive) {
-      lobbyTitle.textContent = 'Väntar på att admin startar spelet...';
+      lobbyTitle.textContent = 'AI bedömer... vänta på resultat.';
     } else if (room.phase === 'finished') {
       lobbyTitle.textContent = 'Spelet är klart. Väntar på admin.';
     } else {
@@ -60,15 +63,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return pSnap.exists() ? { id: localPlayerKey, ...pSnap.val() } : null;
   }
 
-  playersRef().on('value', snap => {
-    renderPlayers(snap.val());
-  });
+  playersRef().on('value', snap => renderPlayers(snap.val()));
 
   db.ref(ROOM).on('value', async snap => {
     const room = snap.val() || {};
     updateLobbyText(room);
 
-    if (!room.gameActive){
+    if (!room.gameActive) {
       stage.classList.add('hidden');
       if (joinArea) joinArea.style.display = '';
       return;
@@ -93,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const previousList = document.getElementById('previousList');
 
     const lp = await getLocalPlayer();
-    if (!lp){
+    if (!lp) {
       if (playerRole) playerRole.textContent = '-';
       if (roleHelp) roleHelp.textContent = 'Du är inte ansluten som spelare.';
       argumentSection?.classList.add('hidden');
@@ -104,13 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const pairs = room.pairs || [];
     let myPair = null;
     let myRole = null;
-    for (const p of pairs){
+    for (const p of pairs) {
       if (!p) continue;
       if (p.a === lp.id) { myPair = p; myRole = 'A'; break; }
       if (p.b === lp.id) { myPair = p; myRole = 'B'; break; }
     }
 
-    if (!myPair){
+    if (!myPair) {
       playerRole.textContent = 'Utesluten';
       roleHelp.textContent = 'Du blev inte tilldelad ett par.';
       argumentSection?.classList.add('hidden');
@@ -125,14 +126,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const writerRole = (phase === 'phase1') ? 'A' : 'B';
     const amIWriter = (writerRole === myRole);
 
-    if (phase === 'finished'){
+    if (phase === 'finished') {
       argumentSection?.classList.add('hidden');
       quizArea?.classList.add('hidden');
       roleHelp.textContent = 'Spelet är klart. Väntar på admin.';
       return;
     }
 
-    if (amIWriter){
+    if (amIWriter) {
       argumentSection?.classList.remove('hidden');
       quizArea?.classList.add('hidden');
       roleHelp.textContent = `Du skriver ditt argument som ${roleText}. Var kort och tydlig.`;
@@ -142,8 +143,28 @@ document.addEventListener('DOMContentLoaded', () => {
       roleHelp.textContent = 'Du svarar på frågor medan din motståndare skriver.';
     }
 
+    // Visa motståndarens argument från föregående runda till spelare A
+    if (room.roundNumber !== lastRoundSeen) {
+      lastRoundSeen = room.roundNumber;
+      if (myRole === 'A' && room.roundNumber > 1) {
+        const opponentId = myPair.b;
+        const allPlayersSnap = await playersRef().once('value');
+        const allPlayers = allPlayersSnap.exists() ? allPlayersSnap.val() : {};
+        const prevKey = `r${room.roundNumber - 1}_phase1`;
+        const prevArgs = allPlayers[opponentId]?.arguments?.[prevKey]?.text || '';
+        if (opponentBox) {
+          opponentBox.innerHTML = `
+            <h3>Motståndarens argument från förra rundan:</h3>
+            <p>${prevArgs || '(Inga argument hittades)'}</p>
+          `;
+        }
+      } else if (opponentBox) {
+        opponentBox.innerHTML = '';
+      }
+    }
+
     // --- Quiz ---
-    if (!amIWriter){
+    if (!amIWriter) {
       const allQuestions = [
         'Riksdagen stiftar lagar.',
         'Regeringen väljs av folket direkt.',
@@ -153,93 +174,67 @@ document.addEventListener('DOMContentLoaded', () => {
       ];
       quizList.innerHTML = '';
       allQuestions.forEach((q, i) => {
-        const row = document.createElement('div'); row.style.marginBottom='8px';
+        const row = document.createElement('div'); row.style.marginBottom = '8px';
         const label = document.createElement('div'); label.textContent = q; row.appendChild(label);
-        const btnT = document.createElement('button'); btnT.textContent='Sant'; btnT.className='primary'; btnT.style.marginRight='6px';
-        const btnF = document.createElement('button'); btnF.textContent='Falskt'; btnF.className='secondary';
-        btnT.onclick=()=>submitQuizAnswer(`q${i+1}`,true);
-        btnF.onclick=()=>submitQuizAnswer(`q${i+1}`,false);
+        const btnT = document.createElement('button'); btnT.textContent = 'Sant'; btnT.className = 'primary'; btnT.style.marginRight = '6px';
+        const btnF = document.createElement('button'); btnF.textContent = 'Falskt'; btnF.className = 'secondary';
+        btnT.onclick = () => submitQuizAnswer(`q${i + 1}`, true);
+        btnF.onclick = () => submitQuizAnswer(`q${i + 1}`, false);
         row.appendChild(btnT); row.appendChild(btnF);
         quizList.appendChild(row);
       });
-      quizStatus.textContent='';
+      quizStatus.textContent = '';
     }
-
-    // --- Previous arguments ---
-    previousList.innerHTML='';
-    previousArguments?.classList.add('hidden');
-    try{
-      const allPlayersSnap = await playersRef().once('value');
-      const allPlayers = allPlayersSnap.exists()?allPlayersSnap.val():{};
-      const round = room.roundNumber||1;
-      const keys = [`r${round}_phase1`, `r${round}_phase2`];
-      const container = document.createElement('div'); container.className='previous-args-container';
-      keys.forEach(k=>{
-        Object.entries(allPlayers).forEach(([pid,p])=>{
-          if (!p?.arguments?.[k]?.text) return;
-          if (pid === lp.id) return; // visa bara motståndare
-          const card = document.createElement('div'); card.className='card';
-          const h=document.createElement('div'); h.style.fontWeight='700'; h.textContent=`${p.party} (${k})`;
-          const t=document.createElement('div'); t.textContent=p.arguments[k].text;
-          card.appendChild(h); card.appendChild(t);
-          container.appendChild(card);
-        });
-      });
-      if (container.children.length){
-        previousList.appendChild(container);
-        previousArguments?.classList.remove('hidden');
-        previousArguments.style.display='';
-      }
-    } catch(e){ console.warn(e); }
 
     // --- Disable if submitted ---
     const myKey = `r${room.roundNumber}_${phase}`;
     const already = lp.arguments && lp.arguments[myKey];
-    if (already){
-      argumentStatus.textContent='Du har redan skickat för denna fas.';
-      submitArgumentBtn.disabled=true; argumentInput.disabled=true;
+    if (already) {
+      argumentStatus.textContent = 'Du har redan skickat för denna fas.';
+      submitArgumentBtn.disabled = true; argumentInput.disabled = true;
     } else {
-      argumentStatus.textContent=''; submitArgumentBtn.disabled=false; argumentInput.disabled=false;
+      argumentStatus.textContent = ''; submitArgumentBtn.disabled = false; argumentInput.disabled = false;
     }
   });
 
-  async function attemptJoin(){
-    joinError.textContent='';
-    const party=(partyInput.value||'').trim();
-    if (!party){ joinError.textContent='Skriv in ett partinamn'; partyInput.focus(); return; }
+  async function attemptJoin() {
+    joinError.textContent = '';
+    const party = (partyInput.value || '').trim();
+    if (!party) { joinError.textContent = 'Skriv in ett partinamn'; partyInput.focus(); return; }
     const snap = await playersRef().once('value');
-    const players = snap.exists()?snap.val():{};
-    if (Object.values(players).some(p=>p.party?.toLowerCase()===party.toLowerCase())){ joinError.textContent='Namnet är upptaget'; return; }
-    const newRef = playersRef().push(); const key=newRef.key;
-    await newRef.set({party,points:0,ready:'',arguments:{}}); await newRef.update({party});
-    localPlayerKey=key; localParty=party; localStorage.setItem('playerKey',key); localStorage.setItem('playerParty',party);
-    joinBtn.textContent='Ansluten'; joinBtn.disabled=true; partyInput.disabled=true;
-    joinArea?.classList.add('collapsed'); joinArea.style.display='none';
+    const players = snap.exists() ? snap.val() : {};
+    if (Object.values(players).some(p => p.party?.toLowerCase() === party.toLowerCase())) { joinError.textContent = 'Namnet är upptaget'; return; }
+    const newRef = playersRef().push(); const key = newRef.key;
+    await newRef.set({ party, points: 0, ready: '', arguments: {} }); await newRef.update({ party });
+    localPlayerKey = key; localParty = party;
+    localStorage.setItem('playerKey', key); localStorage.setItem('playerParty', party);
+    joinBtn.textContent = 'Ansluten'; joinBtn.disabled = true; partyInput.disabled = true;
+    joinArea?.classList.add('collapsed'); joinArea.style.display = 'none';
   }
 
-  joinBtn.onclick=attemptJoin;
-  partyInput.addEventListener('keydown', e=>{if(e.key==='Enter') attemptJoin();});
+  joinBtn.onclick = attemptJoin;
+  partyInput.addEventListener('keydown', e => { if (e.key === 'Enter') attemptJoin(); });
 
-  submitArgumentBtn.addEventListener('click', async ()=>{
-    const txt=(argumentInput.value||'').trim();
-    if (!txt){ argumentStatus.textContent='Skriv något först.'; return; }
-    const lp=await getLocalPlayer(); if(!lp){argumentStatus.textContent='Inte ansluten.'; return;}
-    const roomSnap=await roomRef().once('value'); const room=roomSnap.exists()?roomSnap.val():{};
-    const round=room.roundNumber||1; const phase=room.phase||'phase1';
-    const key=`r${round}_${phase}`;
-    await db.ref(`${ROOM}/players/${lp.id}/arguments`).update({[key]:{text:txt,at:Date.now()}});
-    await db.ref(`${ROOM}/players/${lp.id}`).update({ready:key});
-    argumentStatus.textContent='Skickat!'; submitArgumentBtn.disabled=true; argumentInput.disabled=true;
+  submitArgumentBtn.addEventListener('click', async () => {
+    const txt = (argumentInput.value || '').trim();
+    if (!txt) { argumentStatus.textContent = 'Skriv något först.'; return; }
+    const lp = await getLocalPlayer(); if (!lp) { argumentStatus.textContent = 'Inte ansluten.'; return; }
+    const roomSnap = await roomRef().once('value'); const room = roomSnap.exists() ? roomSnap.val() : {};
+    const round = room.roundNumber || 1; const phase = room.phase || 'phase1';
+    const key = `r${round}_${phase}`;
+    await db.ref(`${ROOM}/players/${lp.id}/arguments`).update({ [key]: { text: txt, at: Date.now() } });
+    await db.ref(`${ROOM}/players/${lp.id}`).update({ ready: key });
+    argumentStatus.textContent = 'Skickat!'; submitArgumentBtn.disabled = true; argumentInput.disabled = true;
   });
 
-  async function submitQuizAnswer(qid,value){
-    quizStatus.textContent='';
-    const lp=await getLocalPlayer(); if(!lp){quizStatus.textContent='Inte ansluten.'; return;}
-    const roomSnap=await roomRef().once('value'); const room=roomSnap.exists()?roomSnap.val():{};
-    const round=room.roundNumber||1; const phase=room.phase||'phase1';
-    const key=`r${round}_${phase}`;
-    await db.ref(`${ROOM}/players/${lp.id}/quizAnswers/${key}`).update({[qid]:value});
-    quizStatus.textContent=`Svar skickat: ${qid} = ${value?'Sant':'Falskt'}`;
+  async function submitQuizAnswer(qid, value) {
+    quizStatus.textContent = '';
+    const lp = await getLocalPlayer(); if (!lp) { quizStatus.textContent = 'Inte ansluten.'; return; }
+    const roomSnap = await roomRef().once('value'); const room = roomSnap.exists() ? roomSnap.val() : {};
+    const round = room.roundNumber || 1; const phase = room.phase || 'phase1';
+    const key = `r${round}_${phase}`;
+    await db.ref(`${ROOM}/players/${lp.id}/quizAnswers/${key}`).update({ [qid]: value });
+    quizStatus.textContent = `Svar skickat: ${qid} = ${value ? 'Sant' : 'Falskt'}`;
   }
 
   console.log('CLIENT SCRIPT LOADED (DOM Ready)');
