@@ -1,0 +1,26 @@
+async function checkApiKey(apiKey) {
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!res.ok) {
+      console.log('API-key fungerar inte eller har problem:', res.status, res.statusText);
+      return false;
+    }
+
+    const data = await res.json();
+    console.log('API-key fungerar! Tillgängliga modeller:', data.models || data);
+    return true;
+  } catch (err) {
+    console.error('Fel vid API-check:', err);
+    return false;
+  }
+}
+
+// Sätt din API-nyckel här:
+const myKey = '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';
+checkApiKey(myKey);

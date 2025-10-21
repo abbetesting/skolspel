@@ -1,228 +1,202 @@
-// Use Firebase globals loaded by index.html <script> tags (compat builds)
-const ROOM = 'gameRoom';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+/* ===== FIREBASE CONFIG ===== */
 const firebaseConfig = {
   apiKey: "AIzaSyB3h1EJpPZSKasbR0ztZVJXEnwu-Uj_-0M",
   authDomain: "spel-skola.firebaseapp.com",
   databaseURL: "https://spel-skola-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "spel-skola",
 };
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-// initialize using compat/global firebase namespace
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+/* ===== DOM ===== */
+const playersRow = document.getElementById("playersRow");
+const startBtn = document.getElementById("startBtn");
+const endBtn = document.getElementById("endBtn");
+const adminStatus = document.getElementById("adminStatus");
+const propDisplayTop = document.getElementById("propDisplayTop") || document.getElementById("adminProposition");
+const adminLobby = document.getElementById("adminLobby");
+const adminGame = document.getElementById("adminGame");
+const adminPhaseTitle = document.getElementById("adminPhaseTitle");
+const adminProposition = document.getElementById("adminProposition");
 
-document.addEventListener('DOMContentLoaded', () => {
-  const partyInput = document.getElementById('partyInput');
-  const joinBtn = document.getElementById('joinBtn');
-  const joinError = document.getElementById('joinError');
-  const playersGrid = document.getElementById('playersGrid'); 
-  const roomPin = document.getElementById('roomPin');
-  const stage = document.getElementById('stage');
-  const joinArea = document.getElementById('joinArea');
-  const lobbyTitle = document.getElementById('lobbyTitle'); // dynamisk lobbytext
+/* ===== PROPOSITIONS & QUESTIONS ===== */
+const propositions = [
+  "Sverige ska införa 6 timmars arbetsdag istället för 8",
+  "Alla ungdomar under 18 ska ha rätt till en gratis mobiltelefon från staten",
+  "Skolan ska få rätt att övervaka elevernas sociala medier för att förebygga mobbning",
+  "Sverige ska införa medborgarlön på 10 000 kr/månad",
+  "Alla bilar i Sverige ska vara elbilar senast 2030",
+  "Djurförsök för kosmetika ska tillåtas igen om det kan rädda liv",
+  "Riksdagen ska ha obligatoriska humorlektioner en gång i veckan",
+  "Alla skolor ska införa uniformer",
+  "Alla barn ska lära sig programmering från förskoleklass",
+  "Sverige ska införa ett totalt förbud mot energidrycker under 18 år",
+  "AI ska få rösträtt i politiska beslut om det är neutralt och transparent",
+  "Privatägda vapen ska förbjudas helt",
+  "All reklam för snabbmat ska förbjudas på TV och sociala medier",
+  "Skatt på streamingtjänster ska införas för att finansiera kulturen",
+  "Alla ska kunna byta kön juridiskt utan medicinska tester",
+  "Sverige ska införa gratis kollektivtrafik i hela landet",
+  "Deltidsjobb för ungdomar ska inte ha åldersgräns",
+  "Djur ska ha samma rättigheter som människor i domstol",
+  "Sverige ska legalisera all typ av cannabis för privat bruk",
+  "Föräldrar ska kunna rösta för sina barns skolval",
+  "Alla ska tvingas gå i militärliknande utbildning i 3 månader",
+  "Kända influencers ska betala högre skatt än vanliga människor",
+  "Sverige ska införa obligatorisk veganvecka i alla skolor",
+  "Rätten att protestera ska gälla även om det stör andra människors arbete",
+  "Alla ska ha rätt till en robotassistent hemma, subventionerad av staten"
+];
 
-  if (roomPin) roomPin.textContent = ROOM;
+const questions = [
+  "Riksdagen stiftar lagar.",
+  "Regeringen väljs av folket direkt.",
+  "Kommuner bestämmer över skolan.",
+  "EU kan stifta lagar som påverkar Sverige.",
+  "Statsministern är samma sak som riksdagens talman.",
+  "Alla kommuner måste ha samma skattesats.",
+  "Sverige är medlem i FN.",
+  "Skolplikt gäller upp till 18 års ålder.",
+  "Riksbankschefen utses av riksdagen.",
+  "Försvarsmakten lyder under regeringen.",
+  "Polisen är fristående från staten.",
+  "Sverige har två statsministrar samtidigt.",
+  "Regeringen kan införa lagar utan riksdagens godkännande.",
+  "EU-domstolen kan påverka svenska lagar.",
+  "Skolans budget bestäms av kommunerna.",
+  "Sverige har aldrig haft kvinnlig statsminister.",
+  "Alla partier måste delta i riksdagsvalet.",
+  "Militären får agera utomlands utan riksdagens godkännande.",
+  "Grundlagen kan ändras av regeringen ensam.",
+  "Alla skolor måste ha gymnasieprogram i naturvetenskap."
+];
 
-  let localPlayerKey = localStorage.getItem('playerKey') || null;
-  let localParty = localStorage.getItem('playerParty') || null;
-  if (localParty) partyInput.value = localParty;
+/* ===== DATABASE REFS ===== */
+const ROOM = "gameRoom";
+const roomRef = ref(db, ROOM);
+const playersRef = ref(db, `${ROOM}/players`);
 
-  const playersRef = () => db.ref(`${ROOM}/players`);
-  const roomRef = () => db.ref(ROOM);
+/* ===== LOBBY LIVE UPDATE ===== */
+onValue(playersRef, (snap) => {
+  const players = snap.val() || {};
+  playersRow.innerHTML = "";
+  const entries = Object.entries(players);
+  adminStatus.textContent = entries.length === 0 ? "Väntar på spelare..." : `${entries.length} spelare anslutna`;
 
-  function renderPlayers(playersObj){
-    if (!playersGrid) return;
-    playersGrid.innerHTML = '';
-    const entries = Object.entries(playersObj || {});
-    entries.forEach(([id, p]) => {
-      const div = document.createElement('div');
-      div.className = 'player-chip';
-      div.textContent = p.party + (p.points ? ` — ${p.points}p` : '');
-      playersGrid.appendChild(div);
+  entries.forEach(([id, p]) => {
+    const pill = document.createElement("div");
+    pill.className = "player-pill";
+    pill.textContent = (p.party || id) + (p.points ? ` — ${p.points}p` : "");
+    playersRow.appendChild(pill);
+  });
+});
+
+/* ===== START GAME ===== */
+startBtn.addEventListener("click", async () => {
+  const playersSnap = await get(playersRef);
+  const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+  const playerIds = Object.keys(playersObj);
+  if (playerIds.length < 2) return alert("Minst 2 spelare krävs");
+
+  // Slumpa par
+  const shuffled = playerIds.sort(() => Math.random() - 0.5);
+  const pairs = [];
+  for (let i = 0; i < shuffled.length; i += 2) {
+    const a = shuffled[i], b = shuffled[i + 1] || null;
+    if (b) pairs.push({ a, b });
+  }
+
+  // Slumpa proposition för runda 1
+  const shuffledProps = propositions.sort(() => Math.random() - 0.5);
+  const proposition = shuffledProps[0];
+
+  await set(roomRef, {
+    gameActive: true,
+    proposition,
+    roundNumber: 1,
+    totalRounds: 3,
+    phase: "phase1",
+    pairs,
+  });
+
+  for (const pid of playerIds) {
+    const p = playersObj[pid] || {};
+    const partyName = p.party?.trim() || `Spelare-${pid.slice(-4)}`;
+    await update(ref(db, `${ROOM}/players/${pid}`), {
+      points: 0,
+      ready: "",
+      party: partyName,
     });
   }
 
-  async function getLocalPlayer() {
-    if (!localPlayerKey) return null;
-    const pSnap = await db.ref(`${ROOM}/players/${localPlayerKey}`).once('value');
-    return pSnap.exists() ? { id: localPlayerKey, ...pSnap.val() } : null;
+  adminStatus.textContent = `Spelet startat — Runda 1 / Fas 1`;
+  if (propDisplayTop) {
+    propDisplayTop.textContent = `Proposition: ${proposition}`;
+    propDisplayTop.style.display = "";
   }
+  adminLobby.classList.add("hidden");
+  adminGame.classList.remove("hidden");
+  adminPhaseTitle.textContent = `1 / 3 — Fas 1`;
+  adminProposition.textContent = `Proposition: ${proposition}`;
+});
 
-  function updateLobbyText(room){
-    if (!room.gameActive){
-      lobbyTitle.textContent = 'Väntar på att admin startar spelet...';
-      return;
-    }
-    if (room.phase === 'ai_judging'){
-      lobbyTitle.textContent = 'AI bedömer ditt argument – vänta på resultat';
-    } else {
-      lobbyTitle.textContent = 'Spelet pågår';
+/* ===== AUTO ADVANCE PHASE ===== */
+onValue(roomRef, async (snap) => {
+  const room = snap.val();
+  if (!room || !room.gameActive) return;
+
+  const phase = room.phase;
+  const roundNumber = room.roundNumber || 1;
+  const pairs = room.pairs || [];
+
+  if (!["phase1", "phase2"].includes(phase)) return;
+
+  const expectedKey = `r${roundNumber}_${phase}`;
+  const playersSnap = await get(playersRef);
+  const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+
+  const writerRole = phase === "phase1" ? "A" : "B";
+  let writers = pairs.flatMap(p => writerRole === "A" ? [p.a] : [p.b]);
+  const allReady = writers.every(wid => playersObj[wid]?.ready === expectedKey);
+
+  if (allReady) {
+    if (phase === "phase1") {
+      await update(roomRef, { phase: "phase2" });
+      resetReadyFlags();
+      adminStatus.textContent = `Runda ${roundNumber} — Fas 2`;
+      adminPhaseTitle.textContent = `${roundNumber} / ${room.totalRounds} — Fas 2`;
+    } else if (phase === "phase2") {
+      if (roundNumber < room.totalRounds) {
+        // Slumpa nästa proposition
+        const nextProp = propositions[Math.floor(Math.random() * propositions.length)];
+        await update(roomRef, { phase: "phase1", roundNumber: roundNumber + 1, proposition: nextProp });
+        resetReadyFlags();
+        adminStatus.textContent = `Runda ${roundNumber + 1} — Fas 1`;
+        adminPhaseTitle.textContent = `${roundNumber + 1} / ${room.totalRounds} — Fas 1`;
+        adminProposition.textContent = `Proposition: ${nextProp}`;
+      } else {
+        adminStatus.textContent = "Alla rundor klara — vänta på admin avslutar spelet";
+      }
     }
   }
+});
 
-  // live players list
-  playersRef().on('value', snap => {
-    const players = snap.val() || {};
-    renderPlayers(players);
-  });
-
-  // room metadata listener
-  db.ref(ROOM).on('value', async snap => {
-    const room = snap.val() || {};
-    updateLobbyText(room);
-
-    if (!room.gameActive){
-      stage.classList.add('hidden');
-      if (joinArea) joinArea.style.display = '';
-      return;
-    }
-
-    // spelet pågår
-    stage.classList.remove('hidden');
-    if (joinArea) joinArea.style.display = 'none';
-
-    const st = document.getElementById('stageTitle');
-    if (st) st.textContent = room.proposition || '-'; // propositionen visas
-
-    const playerRole = document.getElementById('playerRole');
-    const roleHelp = document.getElementById('roleHelp');
-    const argumentSection = document.getElementById('argumentSection');
-    const argumentInput = document.getElementById('argumentInput');
-    const submitArgumentBtn = document.getElementById('submitArgumentBtn');
-    const argumentStatus = document.getElementById('argumentStatus');
-    const quizArea = document.getElementById('quizArea');
-    const quizList = document.getElementById('quizList');
-    const quizStatus = document.getElementById('quizStatus');
-
-    const lp = await getLocalPlayer();
-    if (!lp){
-      if (playerRole) playerRole.textContent = '-';
-      if (roleHelp) roleHelp.textContent = 'Du är inte ansluten som spelare.';
-      if (argumentSection) argumentSection.classList.add('hidden');
-      if (quizArea) quizArea.classList.add('hidden');
-      return;
-    }
-
-    const pairs = room.pairs || [];
-    let myPair = null;
-    let myRole = null;
-    for (const p of pairs){
-      if (!p) continue;
-      if (p.a === lp.id) { myPair = p; myRole = 'A'; break; }
-      if (p.b === lp.id) { myPair = p; myRole = 'B'; break; }
-    }
-
-    if (!myPair){
-      playerRole.textContent = 'Utesluten';
-      roleHelp.textContent = 'Du blev inte tilldelad ett par.';
-      argumentSection.classList.add('hidden');
-      quizArea.classList.add('hidden');
-      return;
-    }
-
-    const roleText = (myRole === 'A') ? 'FÖR' : 'MOT';
-    playerRole.textContent = roleText;
-
-    // bestäm om skrivfas
-    const phase = room.phase || 'phase1';
-    const writerRole = (phase === 'phase1') ? 'A' : 'B';
-    const amIWriter = (writerRole === myRole);
-
-    if (phase === 'ai_judging'){
-      argumentSection.classList.add('hidden');
-      quizArea.classList.add('hidden');
-      roleHelp.textContent = 'AI bedömer ditt argument...';
-    } else if (amIWriter){
-      argumentSection.classList.remove('hidden');
-      quizArea.classList.add('hidden');
-      roleHelp.textContent = `Du skriver ditt argument som ${roleText}. Var kort och tydlig.`;
-    } else {
-      argumentSection.classList.add('hidden');
-      quizArea.classList.remove('hidden');
-      roleHelp.textContent = 'Du svarar på frågor medan din motståndare skriver.';
-    }
-
-    // render quiz questions
-    quizList.innerHTML = '';
-    if (!amIWriter && phase !== 'ai_judging'){
-      const sampleQs = [
-        { id: 'q1', text: 'Riksdagen stiftar lagar.' },
-        { id: 'q2', text: 'Regeringen väljs av folket direkt.' },
-        { id: 'q3', text: 'Kommuner bestämmer över skolan.' },
-        { id: 'q4', text: 'EU kan stifta lagar som påverkar Sverige.' },
-        { id: 'q5', text: 'Statsministern är samma sak som riksdagens talman.' }
-      ];
-      sampleQs.forEach(q => {
-        const row = document.createElement('div'); row.style.marginBottom = '8px';
-        const label = document.createElement('div'); label.textContent = q.text; row.appendChild(label);
-        const btnT = document.createElement('button'); btnT.textContent = 'Sant'; btnT.className = 'primary'; btnT.style.marginRight = '6px';
-        const btnF = document.createElement('button'); btnF.textContent = 'Falskt'; btnF.className = 'secondary';
-        btnT.addEventListener('click', () => submitQuizAnswer(q.id, true));
-        btnF.addEventListener('click', () => submitQuizAnswer(q.id, false));
-        row.appendChild(btnT); row.appendChild(btnF);
-        quizList.appendChild(row);
-      });
-      quizStatus.textContent = '';
-    }
-
-    // kontrollera om argument redan skickats
-    const key = `r${room.roundNumber || 1}_${phase}`;
-    if (lp.arguments && lp.arguments[key]){
-      argumentStatus.textContent = 'Du har redan skickat för denna fas.';
-      submitArgumentBtn.disabled = true; argumentInput.disabled = true;
-    } else {
-      argumentStatus.textContent = '';
-      submitArgumentBtn.disabled = false; argumentInput.disabled = false;
-    }
-  });
-
-  // join player
-  async function attemptJoin(){
-    joinError.textContent = '';
-    const party = (partyInput.value||'').trim();
-    if (!party){ joinError.textContent = 'Skriv in ett partinamn'; partyInput.focus(); return; }
-
-    const snap = await playersRef().once('value');
-    const players = snap.exists() ? snap.val() : {};
-    const exists = Object.values(players).some(p => p.party && p.party.toLowerCase() === party.toLowerCase());
-    if (exists){ joinError.textContent = 'Namnet är upptaget'; return; }
-
-    const newRef = playersRef().push();
-    const key = newRef.key;
-    await newRef.set({ party, points: 0, ready: '', arguments: {} });
-    localPlayerKey = key; localParty = party;
-    localStorage.setItem('playerKey', key); localStorage.setItem('playerParty', party);
-    joinBtn.textContent = 'Ansluten'; joinBtn.disabled = true; partyInput.disabled = true;
-    if (joinArea) joinArea.style.display = 'none';
+async function resetReadyFlags() {
+  const playersSnap = await get(playersRef);
+  const playersObj = playersSnap.exists() ? playersSnap.val() : {};
+  for (const pid of Object.keys(playersObj)) {
+    await update(ref(db, `${ROOM}/players/${pid}`), { ready: "" });
   }
+}
 
-  joinBtn.addEventListener('click', attemptJoin);
-  partyInput.addEventListener('keydown', e => { if (e.key === 'Enter') attemptJoin(); });
-
-  async function submitQuizAnswer(qid, value){
-    const lp = await getLocalPlayer();
-    if (!lp){ quizStatus.textContent = 'Inte ansluten.'; return; }
-    const roomSnap = await roomRef().once('value');
-    const room = roomSnap.exists() ? roomSnap.val() : {};
-    const key = `r${room.roundNumber || 1}_${room.phase || 'phase1'}`;
-    await db.ref(`${ROOM}/players/${lp.id}/quizAnswers/${key}`).update({ [qid]: value });
-    quizStatus.textContent = `Svar skickat: ${qid} = ${value ? 'Sant' : 'Falskt'}`;
-  }
-
-  submitArgumentBtn.addEventListener('click', async () => {
-    const txt = (argumentInput.value || '').trim();
-    if (!txt) { argumentStatus.textContent = 'Skriv något först.'; return; }
-    const lp = await getLocalPlayer();
-    if (!lp) { argumentStatus.textContent = 'Inte ansluten.'; return; }
-    const roomSnap = await roomRef().once('value');
-    const room = roomSnap.exists() ? roomSnap.val() : {};
-    const key = `r${room.roundNumber || 1}_${room.phase || 'phase1'}`;
-    await db.ref(`${ROOM}/players/${lp.id}/arguments`).update({ [key]: { text: txt, at: Date.now() } });
-    await db.ref(`${ROOM}/players/${lp.id}`).update({ ready: key });
-    argumentStatus.textContent = 'Skickat!';
-    submitArgumentBtn.disabled = true; argumentInput.disabled = true;
-    if (joinArea) joinArea.style.display = 'none';
-  });
-
-  console.log('CLIENT SCRIPT LOADED (DOM Ready)');
+/* ===== END GAME ===== */
+endBtn.addEventListener("click", async () => {
+  await update(roomRef, { gameActive: false, phase: "", roundNumber: 0, pairs: [] });
+  await remove(ref(db, `${ROOM}/players`));
+  adminStatus.textContent = "Spelet avslutat och lobbyn rensad.";
+  adminGame.classList.add("hidden");
+  adminLobby.classList.remove("hidden");
 });
