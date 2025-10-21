@@ -1,13 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import {
-  getDatabase,
-  ref,
-  set,
-  get,
-  update,
-  onValue,
-  remove,
-} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 /* ===== FIREBASE CONFIG ===== */
 const firebaseConfig = {
@@ -20,7 +12,7 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 /* ===== OPENROUTER API KEY ===== */
-const OPENROUTER_API_KEY = "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";
+const OPENROUTER_API_KEY = "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";
 const MODEL_ID = "tngtech/deepseek-r1t2-chimera:free";
 
 /* ===== DOM ===== */
@@ -36,26 +28,26 @@ const adminProposition = document.getElementById("adminProposition");
 
 /* ===== PROPOSITIONS ===== */
 const propositions = [
-    "Sverige ska införa 6 timmars arbetsdag istället för 8",
-    "Alla ungdomar under 18 ska ha rätt till gratis mobiltelefon",
-    "Skolan ska få rätt att övervaka sociala medier",
-    "Sverige ska införa medborgarlön på 10 000 kr/månad",
-    "Alla bilar i Sverige ska vara elbilar senast 2030",
-    "Riksdagen ska ha obligatoriska humorlektioner en gång i veckan",
-    "Alla skolor ska införa uniformer",
-    "Alla barn ska lära sig programmering från förskoleklass",
-    "Sverige ska införa totalt förbud mot energidrycker under 18 år",
-    "Privatägda vapen ska förbjudas helt",
-    "Skatt på streamingtjänster ska införas för kulturen",
-    "Alla ska kunna byta kön juridiskt utan medicinska tester",
-    "Sverige ska införa gratis kollektivtrafik i hela landet",
-    "Djur ska ha samma rättigheter som människor i domstol",
-    "Sverige ska legalisera cannabis för privat bruk",
-    "Föräldrar ska kunna rösta för sina barns skolval",
-    "Kända influencers ska betala högre skatt än vanliga människor",
-    "Sverige ska införa obligatorisk veganvecka i skolor",
-    "Rätten att protestera ska gälla även om det stör arbete",
-    "Alla ska ha rätt till robotassistent hemma, subventionerad"
+  "Sverige ska införa 6 timmars arbetsdag istället för 8",
+  "Alla ungdomar under 18 ska ha rätt till gratis mobiltelefon",
+  "Skolan ska få rätt att övervaka sociala medier",
+  "Sverige ska införa medborgarlön på 10 000 kr/månad",
+  "Alla bilar i Sverige ska vara elbilar senast 2030",
+  "Riksdagen ska ha obligatoriska humorlektioner en gång i veckan",
+  "Alla skolor ska införa uniformer",
+  "Alla barn ska lära sig programmering från förskoleklass",
+  "Sverige ska införa totalt förbud mot energidrycker under 18 år",
+  "Privatägda vapen ska förbjudas helt",
+  "Skatt på streamingtjänster ska införas för kulturen",
+  "Alla ska kunna byta kön juridiskt utan medicinska tester",
+  "Sverige ska införa gratis kollektivtrafik i hela landet",
+  "Djur ska ha samma rättigheter som människor i domstol",
+  "Sverige ska legalisera cannabis för privat bruk",
+  "Föräldrar ska kunna rösta för sina barns skolval",
+  "Kända influencers ska betala högre skatt än vanliga människor",
+  "Sverige ska införa obligatorisk veganvecka i skolor",
+  "Rätten att protestera ska gälla även om det stör arbete",
+  "Alla ska ha rätt till robotassistent hemma, subventionerad"
 ];
 
 /* ===== DATABASE REFS ===== */
@@ -64,7 +56,7 @@ const roomRef = ref(db, ROOM);
 const playersRef = ref(db, `${ROOM}/players`);
 
 /* ===== LOBBY LIVE UPDATE ===== */
-onValue(playersRef, (snap) => {
+onValue(playersRef, snap => {
   const players = snap.val() || {};
   playersRow.innerHTML = "";
   const entries = Object.entries(players);
@@ -110,14 +102,12 @@ startBtn.addEventListener("click", async () => {
       points: 0,
       ready: "",
       party: partyName,
+      arguments: {}
     });
   }
 
   adminStatus.textContent = `Spelet startat — Runda 1 / Fas 1`;
-  if (propDisplayTop) {
-    propDisplayTop.textContent = `Proposition: ${proposition}`;
-    propDisplayTop.style.display = "";
-  }
+  if (propDisplayTop) { propDisplayTop.textContent = `Proposition: ${proposition}`; propDisplayTop.style.display = ""; }
   adminLobby.classList.add("hidden");
   adminGame.classList.remove("hidden");
   adminPhaseTitle.textContent = `1 / 3 — Fas 1`;
@@ -125,7 +115,7 @@ startBtn.addEventListener("click", async () => {
 });
 
 /* ===== AUTO ADVANCE PHASE ===== */
-onValue(roomRef, async (snap) => {
+onValue(roomRef, async snap => {
   const room = snap.val();
   if (!room || !room.gameActive) return;
 
@@ -140,7 +130,7 @@ onValue(roomRef, async (snap) => {
   const playersObj = playersSnap.exists() ? playersSnap.val() : {};
 
   const writerRole = phase === "phase1" ? "A" : "B";
-  let writers = pairs.flatMap(p => writerRole === "A" ? [p.a] : [p.b]);
+  const writers = pairs.flatMap(p => writerRole === "A" ? [p.a] : [p.b]);
 
   const allReady = writers.every(wid => playersObj[wid]?.ready === expectedKey);
   if (allReady) await advancePhase();
@@ -184,8 +174,7 @@ async function resetReadyFlags() {
 /* ===== END GAME ===== */
 endBtn.addEventListener("click", async () => {
   await update(roomRef, { gameActive: false, phase: "", roundNumber: 0, pairs: [] });
-  await remove(ref(db, `${ROOM}/players`));
-  await remove(ref(db, `${ROOM}/arguments`));
+  await remove(playersRef);
   adminStatus.textContent = "Spelet avslutat och lobbyn rensad.";
   adminGame.classList.add("hidden");
   adminLobby.classList.remove("hidden");
@@ -222,10 +211,7 @@ ${JSON.stringify(allArgumentsByPair, null, 2)}
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`
-      },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENROUTER_API_KEY}` },
       body: JSON.stringify({
         model: MODEL_ID,
         messages: [
@@ -239,26 +225,19 @@ ${JSON.stringify(allArgumentsByPair, null, 2)}
 
     if (!response.ok) throw new Error(await response.text());
     const data = await response.json();
-    let aiResult = JSON.parse(data.choices[0].message.content);
+    const aiResult = JSON.parse(data.choices[0].message.content);
 
     await set(ref(db, "finalResults"), aiResult);
-    console.log("AI-resultat sparat:", aiResult);
     alert("AI har bedömt debatten! Resultatet är sparat.");
   } catch (err) {
     console.error("AI-förfrågan misslyckades:", err);
-
-    // fallback: ge mandat till de med flest poäng
+    // fallback
     const fallbackMandat = {};
     const totalMandat = 349;
     const entries = Object.entries(playersObj);
-    const sorted = entries.sort((a,b) => (b[1].points||0) - (a[1].points||0));
     const perMandat = Math.floor(totalMandat / entries.length);
-
-    sorted.forEach(([pid]) => {
-      fallbackMandat[playersObj[pid].party || pid] = perMandat;
-    });
-
-    const fallback = { mandat: fallbackMandat, kommentar: "AI misslyckades, mandaten gavs till de som hade flest poäng." };
+    entries.forEach(([pid]) => { fallbackMandat[playersObj[pid].party || pid] = perMandat; });
+    const fallback = { mandat: fallbackMandat, kommentar: "AI misslyckades, mandaten gavs till de med högst poäng." };
     await set(ref(db, "finalResults"), fallback);
     alert("AI misslyckades — fallback har körts.");
   }
