@@ -36,16 +36,26 @@ const adminProposition = document.getElementById("adminProposition");
 
 /* ===== PROPOSITIONS ===== */
 const propositions = [
-  "Mer samhällskunskap i skolan",
-  "Inför gratis kollektivtrafik för ungdomar",
-  "Sänk rösträttsåldern till 16",
-  "Mobilfria skolor",
-  "Inför obligatorisk samhällskunskap",
-  "Obligatorisk källkritik i alla ämnen",
-  "Gratis skolmat för alla elever",
-  "Inför nationellt betygssystem för samhällskunskap",
-  "Stärk ungdomsrösten i kommunpolitiken",
-  "Mer praktik i skolan",
+    "Sverige ska införa 6 timmars arbetsdag istället för 8",
+    "Alla ungdomar under 18 ska ha rätt till gratis mobiltelefon",
+    "Skolan ska få rätt att övervaka sociala medier",
+    "Sverige ska införa medborgarlön på 10 000 kr/månad",
+    "Alla bilar i Sverige ska vara elbilar senast 2030",
+    "Riksdagen ska ha obligatoriska humorlektioner en gång i veckan",
+    "Alla skolor ska införa uniformer",
+    "Alla barn ska lära sig programmering från förskoleklass",
+    "Sverige ska införa totalt förbud mot energidrycker under 18 år",
+    "Privatägda vapen ska förbjudas helt",
+    "Skatt på streamingtjänster ska införas för kulturen",
+    "Alla ska kunna byta kön juridiskt utan medicinska tester",
+    "Sverige ska införa gratis kollektivtrafik i hela landet",
+    "Djur ska ha samma rättigheter som människor i domstol",
+    "Sverige ska legalisera cannabis för privat bruk",
+    "Föräldrar ska kunna rösta för sina barns skolval",
+    "Kända influencers ska betala högre skatt än vanliga människor",
+    "Sverige ska införa obligatorisk veganvecka i skolor",
+    "Rätten att protestera ska gälla även om det stör arbete",
+    "Alla ska ha rätt till robotassistent hemma, subventionerad"
 ];
 
 /* ===== DATABASE REFS ===== */
